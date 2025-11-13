@@ -1,0 +1,20 @@
+{
+    "name": "attexport",
+    "version": "1.0.0",
+    "description": "Data transfer tool from MS Access ATT2000.MDB to MariaDB payroll database.",
+    "type": "module",
+    "main": "attexport.ts",
+    "scripts": {
+        "build": "tsc",
+        "serve": "node ./dist/attexport.js",
+        "install": "npm install --force --ignore-scripts"
+    },
+    "dependencies": {
+        "mysql2": "^3.15.1",
+        "node-adodb": "^5.0.3"
+    },
+    "devDependencies": {
+        "@types/node": "^24.9.2",
+        "typescript": "^5.9.3"
+    }
+}
