@@ -1,128 +1,122 @@
 import * as mysql from "mysql2/promise"
 
+// Run command node ./dist/attexport.js path host-ip
+// Path to MDB in first first parameter 
 const MDB_FILE_PATH: string = process.argv[2] || "D:\\PAYROLL\\ATT2000.MDB"
 
+// builin ms-access connect string
 const ADODB_CONNECTION_STRING: string = `Provider=Microsoft.Jet.OLEDB.4.0;Data Source=${MDB_FILE_PATH};`
 
+// mariadb connect config get host-ip from second parameter
 const MARIADB_CONFIG: mysql.PoolOptions = {
-    host: "192.168.1.9",
+    host: process.argv[3] || "localhost",
+    port: 3306,
     user: "pr-user",
     password: "pr-user",
     database: "payroll",
-    port: 3306,
     connectionLimit: 5,
+    waitForConnections: true,
+    queueLimit: 0,
+    timezone: "+07:00",
 }
 
+// convert to date "YYYY-MM-DD"
 function formatDate(date: Date): string {
-    return date.toISOString().substring(0, 10) // YYYY-MM-DD
+    return date.toLocaleDateString("sv-SE")
 }
 
-function subtractMonths(date: Date, months: number): Date {
-    const d = new Date(date)
-    d.setMonth(d.getMonth() - months)
-    return d
+// convert to date "YYYY-MM-DD HH:MM:SS"
+function formatDateTime(date: Date): string {
+    return date.toLocaleString("sv-SE")
 }
 
-const ADODB = await import("node-adodb")
+import ADODB from "node-adodb"
 
 async function main() {
     let mariadbPool: mysql.Pool | null = null
-    let mariadbConn: mysql.PoolConnection | null = null
 
     console.log("Starting KEEHIN ATT2000 Data Transfer...")
 
     try {
+        // connect to ms-access DB
         const adodbConnection = ADODB.open(ADODB_CONNECTION_STRING)
         console.log(`Connected to MS Access MDB: ${MDB_FILE_PATH}`)
 
+        // connect to mariadb DB
         mariadbPool = mysql.createPool(MARIADB_CONFIG)
-        mariadbConn = await mariadbPool.getConnection()
         console.log(`Connected to MariaDB: ${MARIADB_CONFIG.database}`)
 
-        const dateQuery: string =
-            "SELECT MAX(dateTxt) AS maxDate FROM timecard WHERE dateTxt <= CURDATE()"
-        const result = await mariadbConn.query<mysql.RowDataPacket[]>(dateQuery)
+        // check last date data in target mariadb
+        const dateQuery: string = "SELECT MAX(dateTxt) AS maxDate FROM timecard"
+        const [result] = await mariadbPool.query<mysql.RowDataPacket[]>(dateQuery)
 
+        // set first export data to last export date or 2023-01-01
         let exportDate: Date
-        const maxDateStr = (result[0] as any).maxDate
-
+        const maxDateStr = result[0].maxDate
         if (maxDateStr) {
             exportDate = new Date(maxDateStr)
         } else {
-            exportDate = subtractMonths(new Date(), 12)
+            exportDate = new Date("2023-01-01")
         }
 
         const exportDateStr = formatDate(exportDate)
         console.log(`Exporting records with CHECKTIME >= ${exportDateStr}`)
 
         const accessQuery: string = `
-          SELECT
-            userinfo.BadgeNumber,
-            CHECKINOUT.CHECKTIME
-          FROM
-            userinfo, CHECKINOUT
-          WHERE
-            CHECKINOUT.CHECKTIME >= #${exportDateStr}# AND
-            userinfo.att = 1 AND
-            userinfo.userid = CHECKINOUT.userid`
+            SELECT
+                userinfo.BadgeNumber,
+                CHECKINOUT.CHECKTIME
+            FROM
+                userinfo, CHECKINOUT
+            WHERE
+                CHECKINOUT.CHECKTIME >= #${exportDateStr}# AND
+                userinfo.att = 1 AND
+                userinfo.userid = CHECKINOUT.userid`
 
         const checkInOutRecords: any[] = await adodbConnection.query(accessQuery)
-
-        await mariadbConn.beginTransaction()
-
+        console.log("MS-Access records", checkInOutRecords.length)
         let insertCount = 0
         let batch: [string, string, string][] = []
-        const BATCH_SIZE = 100
+        const BATCH_SIZE = 1000
+        const TIME_ZONE_OFFSET = 7 * 60 * 60 * 1000
 
-        for (const record of checkInOutRecords) {
-            const badgeNumber: string = record.BadgeNumber
-            const checkTime: string = record.CHECKTIME.toString() // Format: YYYY-MM-DD HH:mm:ss
-
-            const dateTxt = checkTime.substring(0, 10)
-            const timeTxt = checkTime.substring(11, 19)
-
-            batch.push([badgeNumber, dateTxt, timeTxt])
-
-            if (batch.length >= BATCH_SIZE) {
-                await insertBatch(mariadbConn, batch)
-                insertCount += batch.length
-                batch = []
+        for (const record of checkInOutRecords)
+            if (record.BadgeNumber <= "99999") {
+                const badgeNumber: string = record.BadgeNumber
+                const localTime = record.CHECKTIME + TIME_ZONE_OFFSET
+                const checkTime: string = formatDateTime(localTime)
+                const dateTxt = checkTime.substring(0, 10)
+                const timeTxt = checkTime.substring(11, 19)
+                batch.push([dateTxt, badgeNumber, timeTxt])
+                if (batch.length >= BATCH_SIZE) {
+                    await insertBatch(mariadbPool, batch)
+                    insertCount += batch.length
+                    batch = []
+                }
             }
-        }
 
         if (batch.length > 0) {
-            await insertBatch(mariadbConn, batch)
+            await insertBatch(mariadbPool, batch)
             insertCount += batch.length
         }
 
-        await mariadbConn.commit()
         console.log(`✅ Time Export **${insertCount}** records successfully.`)
     } catch (e) {
-        if (mariadbConn) {
-            try {
-                await mariadbConn.rollback()
-                console.log("Transaction rolled back due to error.")
-            } catch (rbError) {
-                console.error("Rollback failed:", rbError)
-            }
-        }
         console.error("An error occurred during data transfer:", (e as Error).message)
     } finally {
-        if (mariadbConn) mariadbConn.release()
         if (mariadbPool) await mariadbPool.end()
-
         console.log("Database connections closed.")
     }
 }
 
-async function insertBatch(conn: mysql.PoolConnection, batch: [string, string, string][]) {
+async function insertBatch(conn: mysql.Pool, batch: [string, string, string][]) {
     try {
         const params = batch.flat()
         const placeholders = new Array(batch.length).fill("(?, ?, ?)").join(", ")
         const sql = `
-          INSERT INTO timecard (BadgeNumber, dateTxt, TimeTxt)
-          VALUES ${placeholders}
-          ON DUPLICATE KEY UPDATE BadgeNumber = VALUES(BadgeNumber)`
+            INSERT INTO timecard (dateTxt, scanCode, timeTxt)
+            VALUES ${placeholders}
+            ON DUPLICATE KEY UPDATE timeTxt = VALUES(timeTxt)`
         await conn.execute(sql, params)
     } catch (e) {
         console.error("Batch insert failed (some records might be duplicates):", e)

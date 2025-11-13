@@ -5,6 +5,8 @@
         "moduleResolution": "node",
         "outDir": "./dist",
         "rootDir": ".",
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true
     },
     "include": [
         "./*.ts"
