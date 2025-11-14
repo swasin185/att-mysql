@@ -72,16 +72,16 @@ async function main() {
         console.log("MS-Access records", checkInOutRecords.length)
         let insertCount = 0
         let batch: [string, string, string][] = []
-        const BATCH_SIZE = 1000
-        const TIME_ZONE_OFFSET = 7 * 60 * 60 * 1000
-
+        const BATCH_SIZE = 100
         for (const record of checkInOutRecords)
-            if (record.BadgeNumber <= "99999") {
+            if (record.BadgeNumber.length <= 5) {
                 const badgeNumber: string = record.BadgeNumber
-                const localTime = record.CHECKTIME + TIME_ZONE_OFFSET
+                const localTime = record.CHECKTIME
                 const checkTime: string = formatDateTime(localTime)
                 const dateTxt = checkTime.substring(0, 10)
-                const timeTxt = checkTime.substring(11, 19)
+                const timeTxt = // TimeZone +7
+                    (Number.parseInt(checkTime.substring(11, 13)) + 7).toString().padStart(2, "0") +
+                    checkTime.substring(13, 16)
                 batch.push([dateTxt, badgeNumber, timeTxt])
                 if (batch.length >= BATCH_SIZE) {
                     await insertBatch(mariadbPool, batch)
