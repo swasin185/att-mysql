@@ -1,7 +1,7 @@
 import * as mysql from "mysql2/promise"
 
-// Run command node ./dist/attexport.js path host-ip
-// Path to MDB in first first parameter 
+// Run command "node ./dist/attexport.js path host-ip"
+// Path to MDB in first first parameter
 const MDB_FILE_PATH: string = process.argv[2] || "D:\\PAYROLL\\ATT2000.MDB"
 
 // builin ms-access connect string
@@ -50,14 +50,9 @@ async function main() {
         const dateQuery: string = "SELECT MAX(dateTxt) AS maxDate FROM timecard"
         const [result] = await mariadbPool.query<mysql.RowDataPacket[]>(dateQuery)
 
-        // set first export data to last export date or 2023-01-01
-        let exportDate: Date
+        // get last export date or 2023-01-01
         const maxDateStr = result[0].maxDate
-        if (maxDateStr) {
-            exportDate = new Date(maxDateStr)
-        } else {
-            exportDate = new Date("2023-01-01")
-        }
+        const exportDate: Date = maxDateStr ? new Date(maxDateStr) : new Date("2023-01-01")
 
         const exportDateStr = formatDate(exportDate)
         console.log(`Exporting records with CHECKTIME >= ${exportDateStr}`)
