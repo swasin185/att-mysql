@@ -10,7 +10,8 @@
         "install": "npm install --force --ignore-scripts"
     },
     "dependencies": {
-        "mysql2": "2.3.3",
+        "moment": "^2.30.1",
+        "mysql2": "^3.15.3",
         "node-adodb": "^5.0.3"
     },
     "devDependencies": {

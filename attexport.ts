@@ -20,17 +20,8 @@ const MARIADB_CONFIG: mysql.PoolOptions = {
     timezone: "+07:00",
 }
 
-// convert to date "YYYY-MM-DD"
-function formatDate(date: Date): string {
-    return date.toLocaleDateString("sv-SE")
-}
-
-// convert to date "YYYY-MM-DD HH:MM:SS"
-function formatDateTime(date: Date): string {
-    return date.toLocaleString("sv-SE")
-}
-
 import ADODB from "node-adodb"
+import moment from "moment";
 
 async function main() {
     let mariadbPool: mysql.Pool | null = null
@@ -54,7 +45,7 @@ async function main() {
         const maxDateStr = result[0].maxDate
         const exportDate: Date = maxDateStr ? new Date(maxDateStr) : new Date("2023-01-01")
 
-        const exportDateStr = formatDate(exportDate)
+        const exportDateStr = moment(exportDate).format("YYYY-MM-DD")
         console.log(`Exporting records with CHECKTIME >= ${exportDateStr}`)
 
         const accessQuery: string = `
@@ -73,17 +64,15 @@ async function main() {
         let insertCount = 0
         let batch: [string, string, string][] = []
         const BATCH_SIZE = 1000
+
         for (const record of checkInOutRecords)
             if (record.BadgeNumber.length <= 5) {
                 const badgeNumber: string = record.BadgeNumber
-                const checkTime: string = formatDateTime(record.CHECKTIME)
-                const dateTxt = checkTime.substring(0, 10)
-                const timeTxt = // TimeZone +7
-                    (Number.parseInt(checkTime.substring(11, 13)) + 7).toString().padStart(2, "0") +
-                    checkTime.substring(13, 16)
-                if (timeTxt <= "24:00") 
-                    batch.push([dateTxt, badgeNumber, timeTxt])
-                
+                const iso = new Date(record.CHECKTIME)
+                const checkTime = moment(iso)
+                const dateTxt = checkTime.format("YYYY-MM-DD")
+                const timeTxt = checkTime.format("HH:mm")
+                batch.push([dateTxt, badgeNumber, timeTxt])
                 if (batch.length >= BATCH_SIZE) {
                     await insertBatch(mariadbPool, batch)
                     insertCount += batch.length
