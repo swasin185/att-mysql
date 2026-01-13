@@ -22,8 +22,12 @@ const MARIADB_CONFIG: mysql.PoolOptions = {
 
 import ADODB from "node-adodb"
 import moment from "moment";
+var insertCount = 0
+var batch: [string, string][] = []
+const BATCH_SIZE = 1000
 
 async function main() {
+    console.time("Total Execution")
     let mariadbPool: mysql.Pool | null = null
 
     console.log("Starting KEEHIN ATT2000 Data Transfer...")
@@ -36,9 +40,10 @@ async function main() {
         // connect to mariadb DB
         mariadbPool = mysql.createPool(MARIADB_CONFIG)
         console.log(`Connected to MariaDB: ${MARIADB_CONFIG.database}`)
+        console.timeLog("Total Execution", "Connected to DBs")
 
         // check last date data in target mariadb
-        const dateQuery: string = "SELECT MAX(dateTxt) AS maxDate FROM timecard"
+        const dateQuery: string = "SELECT MAX(scanAt) AS maxDate FROM timecard"
         const [result] = await mariadbPool.query<mysql.RowDataPacket[]>(dateQuery)
 
         // get last export date or 2023-01-01
@@ -47,6 +52,7 @@ async function main() {
 
         const exportDateStr = moment(exportDate).format("YYYY-MM-DD")
         console.log(`Exporting records with CHECKTIME >= ${exportDateStr}`)
+        console.timeLog("Total Execution", "Retrieved Max Date")
 
         const accessQuery: string = `
             SELECT
@@ -59,11 +65,13 @@ async function main() {
                 userinfo.att = 1 AND
                 userinfo.userid = CHECKINOUT.userid`
 
+        console.time("Access Query")
         const checkInOutRecords: any[] = await adodbConnection.query(accessQuery)
+        console.timeEnd("Access Query")
+        console.timeLog("Total Execution", "Access Query Completed")
         console.log("MS-Access records", checkInOutRecords.length)
-        let insertCount = 0
-        let batch: [string, string][] = []
-        const BATCH_SIZE = 1000
+
+        console.time("Batch Insertion")
 
         for (const record of checkInOutRecords)
             if (record.BadgeNumber.length <= 5) {
@@ -75,17 +83,17 @@ async function main() {
                 batch.push([badgeNumber, timeTxt])
                 if (batch.length >= BATCH_SIZE) {
                     await insertBatch(mariadbPool, batch)
-                    insertCount += batch.length
-                    batch = []
                 }
             }
 
         if (batch.length > 0) {
             await insertBatch(mariadbPool, batch)
-            insertCount += batch.length
         }
+        console.timeEnd("Batch Insertion")
+        console.timeLog("Total Execution", "Batch Insertion Completed")
 
         console.log(`✅ Time Export **${insertCount}** records successfully.`)
+        console.timeEnd("Total Execution")
     } catch (e) {
         console.error("An error occurred during data transfer:", (e as Error).message)
     } finally {
@@ -95,19 +103,15 @@ async function main() {
 }
 
 async function insertBatch(conn: mysql.Pool, batch: [string, string][]) {
-    try {
-        const params = batch.flat()
-        const placeholders = new Array(batch.length).fill("(?, ?)").join(", ")
-        const sql = `
-            INSERT INTO timecard (scanCode, scanAt)
-            VALUES ${placeholders}
-            ON DUPLICATE KEY UPDATE scanAt = VALUES(scanAt)`
-        await conn.execute(sql, params)
-    } catch (e) {
-        console.error("Batch insert failed (some records might be duplicates):", e)
-    }
+    const params = batch.flat()
+    const placeholders = new Array(batch.length).fill("(?, ?)").join(", ")
+    const sql = `
+        INSERT INTO timecard (scanCode, scanAt)
+        VALUES ${placeholders}
+        ON DUPLICATE KEY UPDATE scanAt = VALUES(scanAt)`
+    await conn.execute(sql, params)
+    insertCount += batch.length
+    batch = []
 }
 
-main().catch(() => {
-    console.log("finish!")
-})
+await main()
