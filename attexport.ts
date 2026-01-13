@@ -62,7 +62,7 @@ async function main() {
         const checkInOutRecords: any[] = await adodbConnection.query(accessQuery)
         console.log("MS-Access records", checkInOutRecords.length)
         let insertCount = 0
-        let batch: [string, string, string][] = []
+        let batch: [string, string][] = []
         const BATCH_SIZE = 1000
 
         for (const record of checkInOutRecords)
@@ -70,9 +70,9 @@ async function main() {
                 const badgeNumber: string = record.BadgeNumber
                 const iso = new Date(record.CHECKTIME)
                 const checkTime = moment(iso)
-                const dateTxt = checkTime.format("YYYY-MM-DD")
-                const timeTxt = checkTime.format("HH:mm")
-                batch.push([dateTxt, badgeNumber, timeTxt])
+                // const dateTxt = checkTime.format("YYYY-MM-DD")
+                const timeTxt = checkTime.format("YYYY-MM-DD HH:mm")
+                batch.push([badgeNumber, timeTxt])
                 if (batch.length >= BATCH_SIZE) {
                     await insertBatch(mariadbPool, batch)
                     insertCount += batch.length
@@ -94,14 +94,14 @@ async function main() {
     }
 }
 
-async function insertBatch(conn: mysql.Pool, batch: [string, string, string][]) {
+async function insertBatch(conn: mysql.Pool, batch: [string, string][]) {
     try {
         const params = batch.flat()
-        const placeholders = new Array(batch.length).fill("(?, ?, ?)").join(", ")
+        const placeholders = new Array(batch.length).fill("(?, ?)").join(", ")
         const sql = `
-            INSERT INTO timecard (dateTxt, scanCode, timeTxt)
+            INSERT INTO timecard (scanCode, scanAt)
             VALUES ${placeholders}
-            ON DUPLICATE KEY UPDATE timeTxt = VALUES(timeTxt)`
+            ON DUPLICATE KEY UPDATE scanAt = VALUES(scanAt)`
         await conn.execute(sql, params)
     } catch (e) {
         console.error("Batch insert failed (some records might be duplicates):", e)
