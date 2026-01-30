@@ -52,7 +52,7 @@ async function main() {
         const exportDate: Date = paramDate ? new Date(paramDate) : maxDateStr ? new Date(maxDateStr) : new Date("2023-01-01")
 
         const exportDateStr = moment(exportDate).format("YYYY-MM-DD")
-        const untilDateStr = moment(exportDate).add(1, "month").format("YYYY-MM-DD")
+        const untilDateStr = moment(exportDate).add(1, "year").format("YYYY-MM-DD")
         console.log(`Exporting records with CHECKTIME >= ${exportDateStr}`)
         console.timeLog("Total Execution", "Retrieved Max Date")
 
@@ -77,7 +77,7 @@ async function main() {
         console.log("MS-Access records", checkInOutRecords.length)
 
         console.time("Batch Insertion")
-
+        batch = []
         for (const record of checkInOutRecords)
             if (record.BadgeNumber.length <= 5) {
                 const badgeNumber: string = record.BadgeNumber
@@ -85,10 +85,13 @@ async function main() {
                 const checkTime = moment(iso)
                 // const dateTxt = checkTime.format("YYYY-MM-DD")
                 const timeTxt = checkTime.format("YYYY-MM-DD HH:mm")
+
                 batch.push([badgeNumber, timeTxt])
                 if (batch.length >= BATCH_SIZE) {
                     await insertBatch(mariadbPool, batch)
+                    batch = []
                 }
+
             }
 
         if (batch.length > 0) {
@@ -110,13 +113,14 @@ async function main() {
 async function insertBatch(conn: mysql.Pool, batch: [string, string][]) {
     const params = batch.flat()
     const placeholders = new Array(batch.length).fill("(?, ?)").join(", ")
+    // console.log(params)
+    // console.log(placeholders)
     const sql = `
-        INSERT INTO timecard (scanCode, scanAt)
-        VALUES ${placeholders}
-        ON DUPLICATE KEY UPDATE scanAt = VALUES(scanAt)`
+        INSERT IGNORE INTO timecard (scanCode, scanAt)
+        VALUES ${placeholders}`
     await conn.execute(sql, params)
+    console.timeLog("Batch Insertion", `Inserted ${batch.length} records`)
     insertCount += batch.length
-    batch = []
 }
 
 await main()
