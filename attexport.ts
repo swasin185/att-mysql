@@ -26,6 +26,8 @@ var insertCount = 0
 var batch: [string, string][] = []
 const BATCH_SIZE = 1000
 
+const paramDate = process.argv[3]
+
 async function main() {
     console.time("Total Execution")
     let mariadbPool: mysql.Pool | null = null
@@ -48,7 +50,7 @@ async function main() {
 
         // get last export date or 2023-01-01
         const maxDateStr = result[0].maxDate
-        const exportDate: Date = maxDateStr ? new Date(maxDateStr) : new Date("2023-01-01")
+        const exportDate: Date = paramDate ? new Date(paramDate) : maxDateStr ? new Date(maxDateStr) : new Date("2023-01-01")
 
         const exportDateStr = moment(exportDate).format("YYYY-MM-DD")
         console.log(`Exporting records with CHECKTIME >= ${exportDateStr}`)
@@ -63,7 +65,9 @@ async function main() {
             WHERE
                 CHECKINOUT.CHECKTIME >= #${exportDateStr}# AND
                 userinfo.att = 1 AND
-                userinfo.userid = CHECKINOUT.userid`
+                userinfo.userid = CHECKINOUT.userid
+            ORDER BY CHECKINOUT.CHECKTIME`
+
 
         console.time("Access Query")
         const checkInOutRecords: any[] = await adodbConnection.query(accessQuery)

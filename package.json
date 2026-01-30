@@ -6,7 +6,7 @@
     "main": "attexport.ts",
     "scripts": {
         "build": "tsc",
-        "serve": "node ./dist/attexport.js D:\\PAYROLL\\ATT2000.MDB 192.168.1.12",
+        "serve": "node ./dist/attexport.js D:\\PAYROLL\\ATT2000.MDB 192.168.1.12 2025-02-01",
         "install": "npm install --force --ignore-scripts"
     },
     "dependencies": {
