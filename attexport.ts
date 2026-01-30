@@ -26,7 +26,7 @@ var insertCount = 0
 var batch: [string, string][] = []
 const BATCH_SIZE = 1000
 
-const paramDate = process.argv[3]
+const paramDate = process.argv[4]
 
 async function main() {
     console.time("Total Execution")
@@ -48,11 +48,11 @@ async function main() {
         const dateQuery: string = "SELECT MAX(scanAt) AS maxDate FROM timecard"
         const [result] = await mariadbPool.query<mysql.RowDataPacket[]>(dateQuery)
 
-        // get last export date or 2023-01-01
         const maxDateStr = result[0].maxDate
         const exportDate: Date = paramDate ? new Date(paramDate) : maxDateStr ? new Date(maxDateStr) : new Date("2023-01-01")
 
         const exportDateStr = moment(exportDate).format("YYYY-MM-DD")
+        const untilDateStr = moment(exportDate).add(1, "month").format("YYYY-MM-DD")
         console.log(`Exporting records with CHECKTIME >= ${exportDateStr}`)
         console.timeLog("Total Execution", "Retrieved Max Date")
 
@@ -64,6 +64,7 @@ async function main() {
                 userinfo, CHECKINOUT
             WHERE
                 CHECKINOUT.CHECKTIME >= #${exportDateStr}# AND
+                CHECKINOUT.CHECKTIME <= #${untilDateStr}# AND
                 userinfo.att = 1 AND
                 userinfo.userid = CHECKINOUT.userid
             ORDER BY CHECKINOUT.CHECKTIME`
