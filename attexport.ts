@@ -21,16 +21,16 @@ const MARIADB_CONFIG: mysql.PoolOptions = {
 }
 
 import ADODB from "node-adodb"
-import moment from "moment";
+import moment from "moment"
 var insertCount = 0
 var batch: [string, string][] = []
 const BATCH_SIZE = 1000
 
-const paramDate = process.argv[4]
+var paramDate = process.argv[4]
 
 async function main() {
     console.time("Import")
-    let mariadbPool: mysql.Pool | null = null
+    var mariadbPool: mysql.Pool | null = null
     try {
         // connect to ms-access DB
         const adodbConnection = ADODB.open(ADODB_CONNECTION_STRING)
@@ -84,7 +84,6 @@ async function main() {
                 if (batch.length >= BATCH_SIZE)
                     await insertBatch(mariadbPool)
             }
-
         if (batch.length > 0)
             await insertBatch(mariadbPool)
         console.timeEnd("MariaDB Insertion")
@@ -110,4 +109,4 @@ async function insertBatch(conn: mysql.Pool) {
     batch = []
 }
 
-await main()
+main().catch(console.error)

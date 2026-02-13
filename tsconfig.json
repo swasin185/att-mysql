@@ -1,15 +1,18 @@
 {
     "compilerOptions": {
-        "target": "esnext",
-        "module": "esnext",
+        "target": "ES2019",
+        "module": "commonjs",
         "moduleResolution": "node",
         "outDir": "./dist",
         "rootDir": ".",
         "esModuleInterop": true,
-        "allowSyntheticDefaultImports": true
+        "allowSyntheticDefaultImports": true,
+        "strict": false,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true
     },
     "include": [
-        "./*.ts"
+        "./**/*.ts"
     ],
     "exclude": [
         "node_modules",
