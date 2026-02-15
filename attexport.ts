@@ -30,32 +30,15 @@ var totalRecords = 0
 var processedRecords = 0
 var currentDay = ""
 var dayRecords = 0
-var startTime = Date.now()
 
 // Function to format aligned console output
-function logProgress(elapsed: string, date: string, transfered: number, total: number, percent: string) {
-    const elapsedStr = elapsed.padEnd(8)
+function logProgress(date: string, transfered: number, total: number, percent: string) {
     const dateStr = date.padEnd(12)
     const transferedStr = transfered.toString().padStart(8)
     const totalStr = total.toString().padStart(8)
     const percentStr = percent.padStart(7)
     
-    console.info(`${elapsedStr} ${dateStr} ${transferedStr} ${totalStr} ${percentStr}`)
-}
-
-// Function to format elapsed time
-function formatElapsed(ms: number): string {
-    const seconds = Math.floor(ms / 1000)
-    const minutes = Math.floor(seconds / 60)
-    const hours = Math.floor(minutes / 60)
-    
-    if (hours > 0) {
-        return `${hours}h${minutes % 60}m`
-    } else if (minutes > 0) {
-        return `${minutes}m${seconds % 60}s`
-    } else {
-        return `${seconds}s`
-    }
+    console.timeLog("Export ", `\t${dateStr} ${transferedStr} ${totalStr} ${percentStr}`)
 }
 
 var paramDate = process.argv[4]
@@ -93,23 +76,24 @@ async function main() {
                 userinfo.userid = CHECKINOUT.userid
             ORDER BY CHECKINOUT.CHECKTIME`
 
-        console.time("MS-Access Query")
+        console.time("MS-Access Query\t")
         const checkInOutRecords: any[] = await adodbConnection.query(accessQuery)
-        console.timeEnd("MS-Access Query")
+        console.timeEnd("MS-Access Query\t")
         
         // Initialize progress tracking
         totalRecords = checkInOutRecords.length
         processedRecords = 0
         currentDay = ""
         dayRecords = 0
-        startTime = Date.now()
-        
-        // Print header
+
         console.info("")
-        console.info("ELAPSE   DATE         TRANSFERED    TOTAL   PERCENT")
-        console.info("-------- ------------ -------- -------- -------")
+        // Print header
+        console.info(`TOTAL =\t${totalRecords} records`)
+        console.info("")
+        console.info("         ELAPSE     \tDATE          Records    TOTAL       %")
+        console.info("         -----------\t------------ -------- -------- -------")
         
-        console.time("MariaDB Insertion")
+        console.time("Export ")
         batch = []
         
         // Process records sequentially (already sorted by day)
@@ -128,9 +112,8 @@ async function main() {
                     }
                     
                     // Log progress for completed day
-                    const elapsed = formatElapsed(Date.now() - startTime)
                     const percent = ((processedRecords / totalRecords) * 100).toFixed(1)
-                    logProgress(elapsed, currentDay, dayRecords, processedRecords, percent + "%")
+                    logProgress(currentDay, dayRecords, processedRecords, percent + "%")
                     dayRecords = 0
                     batch = []
                 }
@@ -146,16 +129,12 @@ async function main() {
         // Insert and log final day
         if (batch.length > 0) {
             await insertBatch(mariadbPool)
-            const elapsed = formatElapsed(Date.now() - startTime)
             const percent = ((processedRecords / totalRecords) * 100).toFixed(1)
-            logProgress(elapsed, currentDay, dayRecords, processedRecords, percent + "%")
+            logProgress(currentDay, dayRecords, processedRecords, percent + "%")
         }
             
-        console.timeEnd("MariaDB Insertion")
+        console.timeEnd("Export ")
         console.timeEnd("Import")
-        console.info("")
-        console.info(`✅ Export completed: ${insertCount} records transferred successfully.`)
-        console.info("")
     } catch (e) {
         console.error("Error:", (e as Error).message)
     } finally {
