@@ -42,10 +42,65 @@ CREATE TABLE timecard (
 ## Usage
 
 ### Prerequisites
-1. Install dependencies: `npm install`
-2. Compile TypeScript: `npm run build`
+1. **Node.js 12+** for basic compatibility
+2. **Node.js 24+** for optimal performance (recommended)
+3. Install dependencies: `npm install`
+4. Compile TypeScript: `npm run build`
 
-### Running the Export
+### Node.js 24+ Setup (Recommended)
+
+For optimal performance with Node.js 24+, use the automated setup script:
+
+#### Quick Start
+```bash
+# Navigate to Node.js 24 setup directory
+cd node24
+
+# Run the automated installation and build
+./install.bat
+```
+
+#### Manual Setup for Node.js 24+
+```bash
+# Copy source files
+cp ../attexport.ts .
+
+# Install dependencies
+npm run install
+
+# Build with Node.js 24 optimizations
+npm run build
+
+# Run the application
+npm run serve
+```
+
+### Legacy Node.js Setup
+
+#### Node.js 24+ Automated Script
+
+The `/node24/install.bat` script provides a complete automated setup:
+
+**What it does:**
+1. Copies `attexport.ts` from parent directory
+2. Installs all npm dependencies
+3. Builds TypeScript with Node.js 24 optimizations
+4. Starts the application with default parameters
+
+**Usage:**
+```bash
+# Navigate to setup directory
+cd node24
+
+# Run automated setup
+./install.bat
+```
+
+**Custom Parameters:**
+To use custom parameters, modify the `npm run serve` command in `package.json` or run manually:
+```bash
+node dist/attexport.js <mdb_path> <host_ip> [date]
+```
 
 #### Using Batch File (Windows)
 ```batch
